@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Board } from './components/Board'
+import { SoloMatch } from './components/SoloMatch'
+import type { Difficulty } from './game/solo'
 import { Player } from './components/Player'
 import { initialPieces } from './game/board'
 import { cleanNickname, keys, loadNickname, storage } from './lib/storage'
@@ -9,7 +11,7 @@ import './styles/main.css'
 
 const timerOptions = [[0, 'Nessun limite'], [15, 'Veloce · 15 s'], [30, 'Normale · 30 s'], [60, 'Lenta · 60 s']] as const
 const reasons = { line: 'Quattro pedine in fila.', timeout: 'Il tempo del turno è scaduto.', leave: 'Un giocatore ha abbandonato la partita.' }
-type Panel = 'home' | 'create' | 'join' | 'rules'
+type Panel = 'home' | 'create' | 'join' | 'rules' | 'solo'
 
 function App() {
   const game = useLobby()
@@ -17,6 +19,8 @@ function App() {
   const [nickname, setNickname] = useState(loadNickname)
   const [panel, setPanel] = useState<Panel>('home')
   const [seconds, setSeconds] = useState(30)
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const [solo, setSolo] = useState(false)
   const [joinCode, setJoinCode] = useState('')
   const [feedback, setFeedback] = useState('')
   const slot = room ? room.players.indexOf(identity) + 1 : 0
@@ -56,8 +60,19 @@ function App() {
   const error = feedback || game.error
   const header = <header className="site-header">
     <div className="wordmark"><span className="brand-mark" aria-hidden="true">✦</span> VAGABOND<span> ONLINE</span></div>
-    {room ? <span className="header-detail">Lobby <b>{room.code}</b></span> : <span className="header-detail">Strategia per due</span>}
+    {room ? <span className="header-detail">Lobby <b>{room.code}</b></span> : <span className="header-detail">{solo ? `Contro il computer · ${difficulty === 'easy' ? 'Facile' : 'Normale'}` : 'Strategia per due'}</span>}
   </header>
+
+  if (solo) {
+    return <>{header}<SoloMatch nickname={nickname} difficulty={difficulty} error={feedback}
+      onRename={async value => {
+        const name = validate(value)
+        if (name === null) return false
+        updateNickname(name)
+        return true
+      }}
+      onExit={() => { setSolo(false); navigate('home') }}/></>
+  }
 
   if (room && slot && (room.state === 'playing' || room.state === 'finished')) {
     const opponent = 3 - slot
@@ -131,6 +146,7 @@ function App() {
         event.preventDefault()
         const name = validate(nickname)
         if (!name) return
+        if (panel === 'solo') { updateNickname(name); setSolo(true) }
         if (panel === 'create') await game.act('create', { nickname: name, turn_seconds: seconds })
         if (panel === 'join') await game.act('join', { nickname: name, room_code: joinCode.trim().toUpperCase() })
       }}>
@@ -142,9 +158,15 @@ function App() {
         {panel === 'home' ? <div className="menu-buttons">
           <button type="button" className="primary" onClick={() => { if (validate(nickname)) navigate('create') }}>Crea partita</button>
           <button type="button" onClick={() => { if (validate(nickname)) navigate('join') }}>Unisciti a partita</button>
+          <button type="button" onClick={() => { if (validate(nickname)) navigate('solo') }}>Gioca contro il computer</button>
           <button type="button" className="subtle" onClick={() => navigate('rules')}>Come si gioca</button>
         </div> : <>
-          {panel === 'create' ? <label className="field">Tempo per turno
+          {panel === 'solo' ? <label className="field">Difficoltà
+            <select value={difficulty} onChange={event => setDifficulty(event.target.value === 'easy' ? 'easy' : 'normal')}>
+              <option value="easy">Facile</option>
+              <option value="normal">Normale</option>
+            </select>
+          </label> : panel === 'create' ? <label className="field">Tempo per turno
             <select value={seconds} onChange={event => setSeconds(Number(event.target.value))}>
               {timerOptions.map(([value, title]) => <option key={value} value={value}>{title}</option>)}
             </select>
@@ -152,7 +174,7 @@ function App() {
             <input autoFocus value={joinCode} onChange={event => setJoinCode(event.target.value.toUpperCase())}
               placeholder="ABC234" maxLength={6} autoComplete="off" spellCheck={false} required/>
           </label>}
-          <button className="primary" disabled={game.busy}>{panel === 'create' ? 'Crea lobby' : 'Entra nella lobby'}</button>
+          <button className="primary" disabled={game.busy}>{panel === 'solo' ? 'Inizia partita' : panel === 'create' ? 'Crea lobby' : 'Entra nella lobby'}</button>
           <button type="button" disabled={game.busy} onClick={() => navigate('home')}>Indietro</button>
         </>}
       </form>}
