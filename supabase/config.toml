@@ -1,0 +1,8 @@
+project_id = "vagabond-online"
+
+[auth]
+enabled = true
+enable_anonymous_sign_ins = true
+
+[realtime]
+enabled = true

@@ -1,0 +1,67 @@
+name: Pubblica su GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.76.8
+      - run: supabase start
+      - run: |
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -f supabase/tests/lobby.sql
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -f supabase/tests/cron.sql
+      - name: Prova due sessioni con Supabase locale
+        run: |
+          backend="$(supabase status -o env)"
+          export VITE_SUPABASE_URL="$(awk -F'"' '/^API_URL=/{print $2}' <<< "$backend")"
+          export VITE_SUPABASE_PUBLISHABLE_KEY="$(awk -F'"' '/^ANON_KEY=/{print $2}' <<< "$backend")"
+          test -n "$VITE_SUPABASE_URL"
+          test -n "$VITE_SUPABASE_PUBLISHABLE_KEY"
+          npm run test:e2e
+  deploy:
+    needs: database
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/configure-pages@v5
+      - run: npm ci
+      - run: npm test
+      - run: |
+          test -n "$VITE_SUPABASE_URL"
+          test -n "$VITE_SUPABASE_PUBLISHABLE_KEY"
+          npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4
+        id: deployment
