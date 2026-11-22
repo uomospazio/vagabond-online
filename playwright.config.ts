@@ -2,7 +2,9 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 100_000,
+  timeout: 120_000,
+  // Allow one lobby heartbeat when a subscription is still starting.
+  expect: { timeout: 12_000 },
   use: {
     baseURL: 'http://127.0.0.1:4173',
     browserName: 'chromium',

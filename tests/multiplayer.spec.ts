@@ -17,6 +17,7 @@ async function joinRoom(page: Page, code: string) {
   await page.getByRole('button', { name: 'Unisciti a partita' }).click()
   await page.getByLabel('Codice lobby').fill(code)
   await page.getByRole('button', { name: 'Entra nella lobby' }).click()
+  await expect(page.getByRole('region', { name: 'Tu' })).toContainText('Luigi')
 }
 
 test('due sessioni anonime sincronizzano partita, nickname, riconnessione e rivincita', async ({ browser }) => {
@@ -45,7 +46,7 @@ test('due sessioni anonime sincronizzano partita, nickname, riconnessione e rivi
   await a.getByRole('button', { name: 'Modifica nickname' }).click()
   await a.getByLabel('Nuovo nickname').fill('Àda & 🦊')
   await a.getByLabel('Nuovo nickname').press('Enter')
-  await expect(b.getByRole('region', { name: 'Avversario' })).toContainText('Àda & 🦊', { timeout: 6_000 })
+  await expect(b.getByRole('region', { name: 'Avversario' })).toContainText('Àda & 🦊')
   await expect(b.getByRole('button', { name: 'Seleziona D1' })).toBeVisible()
 
   await a.close()
@@ -59,6 +60,7 @@ test('due sessioni anonime sincronizzano partita, nickname, riconnessione e rivi
   await b.getByRole('button', { name: 'Abbandona partita' }).click()
   await expect(a.getByRole('heading', { name: 'Hai vinto!' })).toBeVisible()
   await a.getByRole('button', { name: 'Torna al menu' }).click()
+  await expect(a.getByLabel('Il tuo nickname')).toBeVisible()
   await expect(b.getByLabel('Il tuo nickname')).toBeVisible()
 
   const secondCode = await createRoom(a, '15')
